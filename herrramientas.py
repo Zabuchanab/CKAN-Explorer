@@ -78,12 +78,14 @@ class Ckan:
         2. Descripción del recurso.
         3. Fecha de creación y modificación.
         4. Formato del recurso.
+        5. Tags y grupos del dataset.
+        6. Organización responsable y el área.
         """
         recurso_total = []
 
         for d in self.listado_datasets():
             e = f'package_show?id={d}'
-            r = self.extractor(endpoint=e)['resources']
+            r = self.extractor(endpoint=e)
 
             campos = {'name',
                       'created',
@@ -92,22 +94,28 @@ class Ckan:
                       'last_modified',
                       'metadata_modified'}
             
-            resultado = [{k:v for k, v in x.items() \
-                          if k in campos} for x in r]
-            
-            for i in resultado:
-                i['dataset'] = d
-                recurso_total.append(i)
+            resultado_desagregado = [
+                {
+                    k:v for k, v in x.items() 
+                    if k in campos
+                } 
+                for x in r['resources']
+                ]
 
-        df = pd.DataFrame(recurso_total)
-        df['created'] = pd.to_datetime(df['created'])\
-            .apply(lambda x: x.strftime(f'%m/%d/%Y'))
+            resultado_desagregado = [
+                {
+                    **recurso,
+                    'tags':[tag['name'] for tag in r['tags']],
+                    'area':r['author'],
+                    'organization':r['organization']['name'],
+                    'grupo':[grupo['name'] for grupo in r['groups']],
+                    'dataset':d
+                }
+                for recurso in resultado_desagregado]
+
+            recurso_total.extend(resultado_desagregado)
         
-        df.sort_values(by='created',
-                       inplace=True,
-                       ascending=False)
-        
-        return df
+        return pd.DataFrame(recurso_total)
     
     def viz_actividad_apertura(self) -> px.line:
         """
